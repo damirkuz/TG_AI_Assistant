@@ -29,13 +29,15 @@ logging.basicConfig(level=logging.INFO)
 env = Env()
 env.read_env()
 BOT_TOKEN = env("BOT_TOKEN")
+semantic_search_slow = SemanticSearch(SearchMode.SLOW)
+semantic_search_fast = SemanticSearch(SearchMode.FAST)
+semantic_search_hybrid = SemanticSearch(SearchMode.HYBRID)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения"""
     # Инициализация ресурсов при старте
     logger.info("Starting application...")
-    
     # Здесь можно инициализировать соединения с БД, Redis и т.д.
     try:
         yield
@@ -119,21 +121,22 @@ async def analyze_chat(request: Request,
             from_user_id = from_user_id.user_id
         name = await tg_client.get_entity(from_user_id)
         all_chat_id_username[from_user_id] = name.first_name
-        messages.append(SemanticMessage(message_id=message.id,
-                                        date=message.date,
-                                        date_unixtime=message.date.timestamp(),
-                                        from_user=name.first_name,
-                                        from_user_id=from_user_id,
-                                        text=message.message,
-                                        reply_to_message_id=message.reply_to))
+        if message.message != None:
+            messages.append(SemanticMessage(message_id=message.id,
+                                            date=message.date,
+                                            date_unixtime=message.date.timestamp(),
+                                            from_user=name.first_name,
+                                            from_user_id=from_user_id,
+                                            text=message.message,
+                                            reply_to_message_id=message.reply_to))
     semantic_search = ""
     match analysis_mode:
         case "fast":
-            semantic_search = SemanticSearch(SearchMode.FAST)
+            semantic_search = semantic_search_fast
         case "slow":
-            semantic_search = SemanticSearch(SearchMode.SLOW)
+            semantic_search = semantic_search_slow
         case "medium":
-            semantic_search = SemanticSearch(SearchMode.HYBRID)
+            semantic_search = semantic_search_hybrid
     correct_messages = semantic_search.get_semantic_matches(query=user_query, messages=messages, k=30)
     messages_for_form = []
     for i in correct_messages:
